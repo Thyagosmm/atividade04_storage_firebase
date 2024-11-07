@@ -1,30 +1,34 @@
-import * as ImagePicker from 'expo-image-picker';
-import firebase, { initializeApp } from 'firebase/app';
-import 'firebase/storage';
-import { deleteObject, getDownloadURL, getStorage, listAll, ref, uploadBytes } from 'firebase/storage';
-import React, { useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Image, Alert, ScrollView } from 'react-native';
 import { Button } from 'react-native-elements';
+import * as ImagePicker from 'expo-image-picker';
+import { initializeApp } from 'firebase/app';
+import { getStorage, ref, uploadBytes, listAll, getDownloadURL, deleteObject } from 'firebase/storage';
+import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
 // Configuração do Firebase
 const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_AUTH_DOMAIN',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_STORAGE_BUCKET',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID'
+  apiKey: "AIzaSyDmmGlgU4mmXfpqVyC8vDqb3WobtFrJoFA",
+  authDomain: "atividade04-storage.firebaseapp.com",
+  projectId: "atividade04-storage",
+  storageBucket: "atividade04-storage.firebasestorage.app",
+  messagingSenderId: "262880976182",
+  appId: "1:262880976182:web:91f8f116ffafbadb626797",
+  measurementId: "G-SEP24HT6HV"
 };
 
-if (!firebase.apps.length) {
-  initializeApp(firebaseConfig);
-}
-const storage = getStorage();
+const app = initializeApp(firebaseConfig);
+const storage = getStorage(app);
+
+type UploadedImage = {
+  url: string;
+  fullPath: string;
+};
 
 const HomeScreen: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
 
   // Carregar imagens enviadas ao abrir a tela
   useEffect(() => {
@@ -36,8 +40,15 @@ const HomeScreen: React.FC = () => {
     try {
       const listRef = ref(storage, 'images/');
       const response = await listAll(listRef);
-      const urls = await Promise.all(response.items.map((itemRef) => getDownloadURL(itemRef)));
-      setUploadedImages(urls);
+
+      const images = await Promise.all(
+        response.items.map(async (itemRef) => {
+          const url = await getDownloadURL(itemRef);
+          return { url, fullPath: itemRef.fullPath }; // Salva o caminho completo (fullPath)
+        })
+      );
+
+      setUploadedImages(images);
     } catch (error) {
       console.error('Erro ao buscar imagens:', error);
     }
@@ -51,8 +62,8 @@ const HomeScreen: React.FC = () => {
       quality: 1,
     });
 
-    if (!result.cancelled) {
-      setSelectedImage(result.uri);
+    if (!result.canceled) {
+      setSelectedImage(result.assets[0].uri); // Corrigido para `assets[0].uri`
     }
   };
 
@@ -65,6 +76,7 @@ const HomeScreen: React.FC = () => {
       const blob = await response.blob();
       const imageRef = ref(storage, `images/${uuidv4()}`);
       await uploadBytes(imageRef, blob);
+
       Alert.alert('Imagem enviada com sucesso!');
       setSelectedImage(null);
       fetchUploadedImages(); // Atualiza a lista de imagens
@@ -73,10 +85,10 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  // Função para excluir uma imagem do Firebase Storage
-  const deleteImage = async (url: string) => {
+  // Função para excluir uma imagem do Firebase Storage usando o fullPath
+  const deleteImage = async (fullPath: string) => {
     try {
-      const imageRef = ref(storage, url.split('.appspot.com/o/')[1].split('?')[0].replace('%2F', '/'));
+      const imageRef = ref(storage, fullPath); // Usa o fullPath diretamente
       await deleteObject(imageRef);
       Alert.alert('Imagem excluída com sucesso!');
       fetchUploadedImages(); // Atualiza a lista de imagens após a exclusão
@@ -111,13 +123,13 @@ const HomeScreen: React.FC = () => {
       />
 
       {/* Lista de Imagens Enviadas */}
-      {uploadedImages.map((url, index) => (
+      {uploadedImages.map((image, index) => (
         <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 5 }}>
-          <Image source={{ uri: url }} style={{ width: 80, height: 80, marginRight: 10 }} />
+          <Image source={{ uri: image.url }} style={{ width: 80, height: 80, marginRight: 10 }} />
           <Button
             title="Excluir"
             buttonStyle={{ backgroundColor: 'green' }}
-            onPress={() => deleteImage(url)}
+            onPress={() => deleteImage(image.fullPath)}
           />
         </View>
       ))}
